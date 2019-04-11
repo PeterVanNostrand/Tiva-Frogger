@@ -6,6 +6,7 @@
 	.global output_character
 	.global dec_to_ascii
 	.global printf
+	.global itoa
 
 LOCKCODE:		.field	0x4C4F434B		; special value written to lock registers to allow use
 SYSCLKCTRL:		.field	0x400FE108, 32	; clock control register
@@ -219,14 +220,14 @@ output_string_exit:
 ;==============================End Output String=========================================
 
 printf:
-;=================================Start Printf===========================================
+;=================================Start printf===========================================
 	; Transmits a null-terminated string over the UART interface. The base address of the string should be passed in r4
 	STMFD SP!, {lr}				; Store the link register on the stack
 	MOV r4, r0
 	BL output_string
 	LDMFD sp!, {lr}				; Pop link register from stack
 	MOV pc, lr					; exitlib the output_string subroutine
-;=================================End Printf===========================================
+;=================================End printf===========================================
 
 output_line:
 ;==============================Start Output Line=========================================
@@ -320,6 +321,18 @@ quotient_exitlib:
 	LDMFD SP!, {r2-r11}
 	MOV PC, LR			; exitlib to caller
 ;================================End div_and_mod=============================================
+
+itoa:
+;===================================itod Start===============================================
+	; Takes the decimal value from r0 and it returns as a string starting at the base in r1
+	STMFD SP!, {r1, r6-r8, LR}
+	MOV r6, r0
+	MOV r7, r1
+	BL dec_to_ascii
+	MOV r0, r7
+	LDMFD SP!, {r1, r6-r8, LR}
+	MOV PC, LR
+;====================================itod End================================================
 
 dec_to_ascii:
 ;==============================Start dec_to_ascii========================================
