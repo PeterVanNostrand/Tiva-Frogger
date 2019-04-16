@@ -1,37 +1,37 @@
 	.data
-board:			.string	"|----------------------------------------------|", 0x0D,0x0A
-bline1:			.string "|**********************************************|", 0x0D,0x0A
-bline2:			.string "|*****     *****     ******     *****     *****|", 0x0D,0x0A
-bline3:			.string "|                                              |", 0x0D,0x0A
-bline4:			.string "|                                              |", 0x0D,0x0A
-bline5:			.string "|                                              |", 0x0D,0x0A
-bline6:			.string "|                                              |", 0x0D,0x0A
-bline7:			.string "|..............................................|", 0x0D,0x0A
-bline8:			.string "|                                              |", 0x0D,0x0A
-bline9:			.string "|                                              |", 0x0D,0x0A
-bline10:		.string "|                                              |", 0x0D,0x0A
-bline11:		.string "|                                              |", 0x0D,0x0A
-bline12:		.string "|                                              |", 0x0D,0x0A
-bline13:		.string "|                                              |", 0x0D,0x0A
-bline14:		.string "|..............................................|", 0x0D,0x0A
-bborderB:		.string	"|----------------------------------------------|", 0
+board:			.string	"|---------------------------------------------|", 0x0D,0x0A
+bline1:			.string "|*********************************************|", 0x0D,0x0A
+bline2:			.string "|*****     *****     *****     *****     *****|", 0x0D,0x0A
+bline3:			.string "|                                             |", 0x0D,0x0A
+bline4:			.string "|                                             |", 0x0D,0x0A
+bline5:			.string "|                                             |", 0x0D,0x0A
+bline6:			.string "|                                             |", 0x0D,0x0A
+bline7:			.string "|.............................................|", 0x0D,0x0A
+bline8:			.string "|                                             |", 0x0D,0x0A
+bline9:			.string "|                                             |", 0x0D,0x0A
+bline10:		.string "|                                             |", 0x0D,0x0A
+bline11:		.string "|                                             |", 0x0D,0x0A
+bline12:		.string "|                                             |", 0x0D,0x0A
+bline13:		.string "|                                             |", 0x0D,0x0A
+bline14:		.string "|.............................................|", 0x0D,0x0A
+bborderB:		.string	"|---------------------------------------------|", 0
 
-emptyboard:		.string	"|----------------------------------------------|", 0x0D,0x0A
-ebline1:		.string "|**********************************************|", 0x0D,0x0A
-ebline2:		.string "|*****     *****     ******     *****     *****|", 0x0D,0x0A
-ebline3:		.string "|                                              |", 0x0D,0x0A
-ebline4:		.string "|                                              |", 0x0D,0x0A
-ebline5:		.string "|                                              |", 0x0D,0x0A
-ebline6:		.string "|                                              |", 0x0D,0x0A
-ebline7:		.string "|..............................................|", 0x0D,0x0A
-ebline8:		.string "|                                              |", 0x0D,0x0A
-ebline9:		.string "|                                              |", 0x0D,0x0A
-ebline10:		.string "|                                              |", 0x0D,0x0A
-ebline11:		.string "|                                              |", 0x0D,0x0A
-ebline12:		.string "|                                              |", 0x0D,0x0A
-ebline13:		.string "|                                              |", 0x0D,0x0A
-ebline14:		.string "|..............................................|", 0x0D,0x0A
-ebborderB:		.string	"|----------------------------------------------|", 0
+emptyboard:		.string	"|---------------------------------------------|", 0x0D,0x0A
+ebline1:		.string "|*********************************************|", 0x0D,0x0A
+ebline2:		.string "|*****     *****     *****     *****     *****|", 0x0D,0x0A
+ebline3:		.string "|                                             |", 0x0D,0x0A
+ebline4:		.string "|                                             |", 0x0D,0x0A
+ebline5:		.string "|                                             |", 0x0D,0x0A
+ebline6:		.string "|                                             |", 0x0D,0x0A
+ebline7:		.string "|.............................................|", 0x0D,0x0A
+ebline8:		.string "|                                             |", 0x0D,0x0A
+ebline9:		.string "|                                             |", 0x0D,0x0A
+ebline10:		.string "|                                             |", 0x0D,0x0A
+ebline11:		.string "|                                             |", 0x0D,0x0A
+ebline12:		.string "|                                             |", 0x0D,0x0A
+ebline13:		.string "|                                             |", 0x0D,0x0A
+ebline14:		.string "|.............................................|", 0x0D,0x0A
+ebborderB:		.string	"|---------------------------------------------|", 0
 
 end_message:	.string " ██████╗  █████╗ ███╗   ███╗███████╗     ██████╗ ██╗   ██╗███████╗██████╗ " , 0x0D,0x0A
 end_1:			.string "██╔════╝ ██╔══██╗████╗ ████║██╔════╝    ██╔═══██╗██║   ██║██╔════╝██╔══██╗" , 0x0D,0x0A
@@ -51,6 +51,10 @@ score_string:	.string "000", 0
 	.global output_line
 	.global output_character
 	.global dec_to_ascii
+	.global draw_board
+	.global move_entities
+	.global draw_entities
+	.global test
 
 UART0: 			.field 	0x4000C000, 32
 TIMER0:			.field	0x40030000,	32	; base address of Timer0
@@ -133,6 +137,13 @@ draw_board: ; AAPCS Compliant - Register Invariant
 	MOV PC, LR
 ;===============================End Draw Board===========================================
 
+test:
+	STMFD SP!, {r0-r11, LR}
+	BL move_entities
+	BL draw_board
+	LDMFD SP!, {r0-r11, LR}
+	MOV PC, LR
+
 draw_score:
 ;==============================Start Draw Score==========================================
 	STMFD SP!, {r0-r11, LR}
@@ -153,23 +164,16 @@ draw_score:
 
 Timer0Handler: ; Register Invariant
 ;============================Start Timer0 Handler========================================
-	STMFD SP!, {r4-r5, LR}		; spill the current register onto stack
+	STMFD SP!, {r0-r11, LR}		; spill the current register onto stack
 	LDR r4, TIMER0				; load base address of TIMER0
 	LDRB r5, [r4, #0x024]		; load GPTM interrupt clear byte
 	ORR r5, r5, #1				; set last bit to clear interrupt
 	STRB r5, [r4, #0x024]		; store the byte
-	CMP r10, r11				; as only one of the xdir or ydir can be nonzero at a time if they are
-	BEQ Timer0Exit				; equal then both are zero and the snake doesn't need to be moved
-	ADD r8, r10					; xpos+=xdir - move the snake horizontally
-	ADD r9, r11					; ypos+=ydir - move the snake vertically
-	BL check_collisions
-	CMP r10, r11				; as only one of the xdir or ydir can be nonzero at a time if they are
-	BEQ Timer0Exit				; equal then both are zero and the snake doesn't need to be moved
-	;BL update_snake
-	BL draw_board				; update the board
-	BL draw_score
+	BL move_entities
+	BL draw_board
+	BL draw_entities
 Timer0Exit:
-	LDMFD SP!, {r4-r5, LR}		; restore the registers state
+	LDMFD SP!, {r0-r11, LR}		; restore the registers state
 	BX LR						; return to execution
 ;=============================End Timer0 Handler=========================================
 
