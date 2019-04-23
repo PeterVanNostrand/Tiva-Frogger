@@ -19,10 +19,12 @@ char* alligator = "Aaaaaa";
 char* log = "LLLLLL";
 struct entity* head = NULL;
 struct entity* tail = NULL;
+char isHalfTick = 0;
+char isUserMotion = 0;
 
 struct entity {
     struct entity* prev;
-    signed char xpos, ypos, xdir, ydir;
+    signed char xpos, ypos, xdir, ydir, length, stop;
     char *color, *text;
     struct entity* next;
 };
@@ -31,8 +33,8 @@ void move_cursor(signed char x, signed char y) {
     printf(escape);
     char xstring[3];
     char ystring[3];
-    itoa(x, xstring);
-    itoa(y, ystring);
+    itoa(x+1, xstring);
+    itoa(y+1, ystring);
     printf(xstring);
     printf(";");
     printf(ystring);
@@ -57,7 +59,7 @@ void print_entity(struct entity* e){
     //printf("\n");
 }
 
-struct entity* create_entity(signed char xpos, signed char ypos, signed char xdir, signed char ydir, char* color, char *text) {
+struct entity* create_entity(signed char xpos, signed char ypos, signed char xdir, signed char ydir, signed char length, signed char stop, char* color, char *text) {
     struct entity* e = malloc(sizeof(struct entity));
     if (e == NULL)
         return NULL;
@@ -66,6 +68,8 @@ struct entity* create_entity(signed char xpos, signed char ypos, signed char xdi
     e->ypos = ypos,
     e->xdir = xdir,
     e->ydir = ydir,
+    e->length = length,
+    e->stop = stop,
     e->color = color,
     e->text = text,
     e->next = NULL;
@@ -96,6 +100,10 @@ void pop_entity(struct entity* e){
         e->prev->next = e->next;
     if(e->next)
         e->next->prev = e->prev;
+    if(e==head)
+        head = e->next;
+    if(e==tail)
+        tail = e->prev;
 }
 
 void delete_entity(struct entity* e) {
@@ -117,16 +125,69 @@ void clear_entities() {
 void move_entities(){
     struct entity* h = head;
     while(h!=NULL){
-        h->xpos += h->xdir;
-        h->ypos += h->ydir;
+        if(!isHalfTick) { // move everything
+            h->xpos += h->xdir;
+            h->ypos += h->ydir;
+        }
+        else if(h->text[0]='&' && isUserMotion){ // it was a half tick and isUserMotion
+            h->xpos += h->xdir;
+            h->ypos += h->ydir;
+        }
+        if(h->stop) {
+            h->xdir = 0;
+            h->ydir = 0;
+            h->stop = 0;
+        }
         struct entity* next = h->next;
-        if(h->xpos<1 || h->xpos>45 || h->ypos<1 || h->ypos>14){
+//        if(h->xpos < 1){
+//            if(h->text[0]==0){
+//                pop_entity(h);
+//                delete_entity(h);
+//            }
+//            h->xpos = 1;
+//            h->text++;
+//        }
+//        if(h->xpos + h->length > 45){
+//            *(h->text + h->length - 1) = 0;
+//            h->length -= 1;
+//            if(h->length == 0){
+//                pop_entity(h);
+//                delete_entity(h);
+//            }
+//
+        if(h->xpos<1 || (h->xpos+h->length)>45 || h->ypos<1 || h->ypos>14){
             pop_entity(h);
             delete_entity(h);
         }
         h = next;
     }
+    isUserMotion = 0;
+    isHalfTick = !isHalfTick; // next timer is the opposite of this
     return;
+}
+
+void set_frog_dir(char c){
+    struct entity* h = head;
+    while(h && h->text[0]!='&') h = h->next;
+    if(!h) return;
+    if(c=='W' || c=='w'){
+        h->xdir = 0;
+        h->ydir = -1;
+    }
+    else if(c=='S' || c=='s'){
+        h->xdir = 0;
+        h->ydir = 1;
+    }
+    else if(c=='A' || c=='a'){
+        h->xdir = -1;
+        h->ydir = 0;
+    }
+    else if(c=='D' || c=='d'){
+        h->xdir = 1;
+        h->ydir = 0;
+    }
+    h->stop = 1;
+    isUserMotion = 1;
 }
 
 int main(void)
@@ -136,10 +197,12 @@ int main(void)
     printf(home_cursor);
     printf(hide_cursor);
     //draw_board();
-    struct entity* gator = create_entity(40, 7, -1, 0, green, alligator);
-    struct entity* l = create_entity(12, 10, 1, 0, brown, log);
-    push_back(l);
+    struct entity* gator = create_entity(40, 5, -1, 0, 6, 0, green, "Aaaaaa");
+    struct entity* l = create_entity(12, 10, 1, 0, 6, 0, brown, "LLLLLL");
+    struct entity* frog = create_entity(10, 10, 1, 0, 1, 0, "", "&");
     push_back(gator);
+    push_back(l);
+    push_back(frog);
     //test();
     timer0_init();
     while(1){}

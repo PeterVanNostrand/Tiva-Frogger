@@ -55,6 +55,7 @@ score_string:	.string "000", 0
 	.global move_entities
 	.global draw_entities
 	.global test
+	.global set_frog_dir
 
 UART0: 			.field 	0x4000C000, 32
 TIMER0:			.field	0x40030000,	32	; base address of Timer0
@@ -79,7 +80,7 @@ score_value:	.field 0, 32
 level:			.field 0, 32
 sys_time:		.field 0, 32
 level_time:		.field 240, 32
-timer_interval:	.field 4000000, 32
+timer_interval:	.field 8000000, 32
 
 lab7:
 	STMFD SP!, {LR}
@@ -185,67 +186,12 @@ Uart0Handler: ; Register Invariant
 	LDRB r1, [r0]				; Load interupt status
 	ORR r1, #0x1				; set bit 4 to clear interrupt
 	STRB r1, [r0]				; store interrupt status
+
 	; Read the character
 	LDR r1, UART0
 	LDRB r0, [r1]
 
-	CMP r0, #105				; if the character is i
-	BEQ char_up
-	CMP r0, #109				; if the character is m
-	BEQ char_down
-	CMP r0, #106				; if the character is j
-	BEQ char_left
-	CMP r0, #107				; if the characker is k
-	BEQ char_right
-
-	; BONUS WASD controls
-	CMP r0, #119				; if the character is i
-	BEQ char_up
-	CMP r0, #115				; if the character is m
-	BEQ char_down
-	CMP r0, #97					; if the character is j
-	BEQ char_left
-	CMP r0, #100				; if the characker is k
-	BEQ char_right
-
-
-	CMP r0, #32					; if the character is "SPACE'
-	BEQ char_space
-	B uart0_exit
-char_space:
-	ADR r4, clear_screen		; clear the screen to remove the old board
-	BL output_string
-	ADR r4, home_cursor
-	BL output_string
-	ADR r4, hide_cursor
-	BL output_string
-	ADR r4, welcome				; print welcome message
-	BL output_line
-	ADR r4, instructions
-	BL output_line
-	ADR r4, instructions1
-	BL output_line
-	ADR r4, instructions2
-	BL output_line
-	;BL update_snake
-	BL draw_board
-	BL draw_score
-	B uart0_exit
-char_up:
-	MOV r11, #-1				; ydir=-1, set the snake moving upwards
-	MOV r10, #0					; xdir=0, stop moving snake left/right
-	B uart0_exit
-char_down:
-	MOV r11, #1					; ydir=1, set the snake moving downwards
-	MOV r10, #0					; xdir=0, stop moving snake left/right
-	B uart0_exit
-char_left:
-	MOV r10, #-1				; xdir=-1, set the snake moving to the left
-	MOV r11, #0					; xdir=0, stop moving snake up/down
-	B uart0_exit
-char_right:
-	MOV r10, #1					; xdir=1, set the snake moving to the right
-	MOV r11, #0					; xdir=0, stop moving snake up/down
+	BL set_frog_dir
 uart0_exit:
 	LDMFD SP!, {r0-r1,LR}		; restore the register values
 	BX LR
