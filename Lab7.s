@@ -1,20 +1,5 @@
 	.data
-board:			.string	"|---------------------------------------------|", 0x0D,0x0A
-bline1:			.string "|*********************************************|", 0x0D,0x0A
-bline2:			.string "|*****     *****     *****     *****     *****|", 0x0D,0x0A
-bline3:			.string "|                                             |", 0x0D,0x0A
-bline4:			.string "|                                             |", 0x0D,0x0A
-bline5:			.string "|                                             |", 0x0D,0x0A
-bline6:			.string "|                                             |", 0x0D,0x0A
-bline7:			.string "|.............................................|", 0x0D,0x0A
-bline8:			.string "|                                             |", 0x0D,0x0A
-bline9:			.string "|                                             |", 0x0D,0x0A
-bline10:		.string "|                                             |", 0x0D,0x0A
-bline11:		.string "|                                             |", 0x0D,0x0A
-bline12:		.string "|                                             |", 0x0D,0x0A
-bline13:		.string "|                                             |", 0x0D,0x0A
-bline14:		.string "|.............................................|", 0x0D,0x0A
-bborderB:		.string	"|---------------------------------------------|", 0
+	.global board
 
 emptyboard:		.string	"|---------------------------------------------|", 0x0D,0x0A
 ebline1:		.string "|*********************************************|", 0x0D,0x0A
@@ -53,9 +38,11 @@ score_string:	.string "000", 0
 	.global dec_to_ascii
 	.global draw_board
 	.global move_entities
-	.global draw_entities
-	.global test
+	;.global draw_entities
+	;.global test
 	.global set_frog_dir
+	.global board_add_entities
+	.global clear_board
 
 UART0: 			.field 	0x4000C000, 32
 TIMER0:			.field	0x40030000,	32	; base address of Timer0
@@ -109,8 +96,9 @@ main:
 run_loop:
 	B run_loop
 
-clear_board: ; AAPCS Compliant, updates r0-r2
+clear_board: ; AAPCS Compliant - Register Invariant
 ;==============================Start Clear Board=========================================
+	STMFD SP!, {r0-r2}
 	MOVW r0, emptyboard			; load address of empty board
 	MOVT r0, emptyboard
 	MOVW r1, board				; load address of current game board
@@ -122,6 +110,7 @@ clear_loop:
 	STRB r2, [r1], #1			; otherwise overwrite board with emptyboard and increment address
 	B clear_loop
 clear_exit:
+	LDMFD SP!, {r0-r2}
 	MOV PC, LR
 ;===============================End Clear Board==========================================
 
@@ -170,9 +159,10 @@ Timer0Handler: ; Register Invariant
 	LDRB r5, [r4, #0x024]		; load GPTM interrupt clear byte
 	ORR r5, r5, #1				; set last bit to clear interrupt
 	STRB r5, [r4, #0x024]		; store the byte
+	BL clear_board
 	BL move_entities
+	BL board_add_entities
 	BL draw_board
-	BL draw_entities
 Timer0Exit:
 	LDMFD SP!, {r0-r11, LR}		; restore the registers state
 	BX LR						; return to execution

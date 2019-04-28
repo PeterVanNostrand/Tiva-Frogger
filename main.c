@@ -4,9 +4,10 @@ extern int lab7(void);
 extern void printf(char*);
 extern void uart_init(void);
 extern void itoa(int x, char* string);
-extern void draw_board(void);
 extern void timer0_init(void);
 extern void test(void);
+extern void draw_board(void);
+extern void clear_board(void);
 
 char escape[3] = { 27, '[', 0 };
 char white[8] = { 27, '[', '3', '7', ';', '0', 'm', 0 };
@@ -20,46 +21,32 @@ char* log = "LLLLLL";
 struct entity* head = NULL;
 struct entity* tail = NULL;
 char isHalfTick = 0;
-char isUserMotion = 0;
+
+char board[] =  "|---------------------------------------------|\r\n"
+                "|*********************************************|\r\n"
+                "|*****     *****     *****     *****     *****|\r\n"
+                "|                                             |\r\n"
+                "|                                             |\r\n"
+                "|                                             |\r\n"
+                "|                                             |\r\n"
+                "|.............................................|\r\n"
+                "|                                             |\r\n"
+                "|                                             |\r\n"
+                "|                                             |\r\n"
+                "|                                             |\r\n"
+                "|                                             |\r\n"
+                "|                                             |\r\n"
+                "|.............................................|\r\n"
+                "|---------------------------------------------|";
+
 
 struct entity {
-    struct entity* prev;
-    signed char xpos, ypos, xdir, ydir, length, stop;
-    char *color, *text;
-    struct entity* next;
+    struct entity *prev, *next;
+    signed char xpos, ypos, xdir, ydir, length, doHalfTick, stop;
+    char *text;
 };
 
-void move_cursor(signed char x, signed char y) {
-    printf(escape);
-    char xstring[3];
-    char ystring[3];
-    itoa(x+1, xstring);
-    itoa(y+1, ystring);
-    printf(xstring);
-    printf(";");
-    printf(ystring);
-    printf("H");
-}
-
-void draw_entity(struct entity* e) {
-    move_cursor(e->ypos, e->xpos);
-    printf(e->color);
-    printf(e->text);
-    printf(white);
-}
-
-void print_entity(struct entity* e){
-    //printf("xpos = %i\n", e->xpos);
-    //printf("ypos = %i\n", e->ypos);
-    //printf("xdir = %i\n", e->xdir);
-    //printf("ydir = %i\n", e->ydir);
-    //printf(e->color);
-    //printf(e->text);
-    //printf(white);
-    //printf("\n");
-}
-
-struct entity* create_entity(signed char xpos, signed char ypos, signed char xdir, signed char ydir, signed char length, signed char stop, char* color, char *text) {
+struct entity* create_entity(signed char xpos, signed char ypos, signed char xdir, signed char ydir, signed char length, signed char doHalfTick, signed char stop, char *text) {
     struct entity* e = malloc(sizeof(struct entity));
     if (e == NULL)
         return NULL;
@@ -69,19 +56,11 @@ struct entity* create_entity(signed char xpos, signed char ypos, signed char xdi
     e->xdir = xdir,
     e->ydir = ydir,
     e->length = length,
+    e->doHalfTick = doHalfTick,
     e->stop = stop,
-    e->color = color,
     e->text = text,
     e->next = NULL;
     return e;
-}
-
-void draw_entities() {
-    struct entity* h = head;
-    while (h) {
-        draw_entity(h);
-        h = h->next;
-    }
 }
 
 void push_back(struct entity* e) {
@@ -111,6 +90,34 @@ void delete_entity(struct entity* e) {
     e = NULL;
 }
 
+void board_add_entities(){
+    struct entity* h = head;
+    while (h) {
+        if(h->xpos > 45 || (h->xpos + h->length - 1) < 1){
+            struct entity* next = h->next;
+            pop_entity(h);
+            delete_entity(h);
+            h = next;
+            continue;
+        }
+        char *textbase = h->text;
+        signed char textlength = h->length;
+        int base = h->ypos*49 + h->xpos;
+        if((h->xpos + h->length - 1) > 45)
+            textlength -= (h->xpos + h->length - 1 - 45);
+        if(h->xpos < 1){
+            textbase += (0 - h->xpos + 1);
+            textlength -= (0 - h->xpos + 1);
+            base = h->ypos*49 + 1;
+        }
+        signed char i;
+        for(i=0; i<textlength; i++){
+            board[base+i] = textbase[i];
+        }
+        h = h->next;
+    }
+}
+
 void clear_entities() {
     while (tail->prev) {
         struct entity* prev = tail->prev;
@@ -124,46 +131,19 @@ void clear_entities() {
 
 void move_entities(){
     struct entity* h = head;
-    while(h!=NULL){
-        if(!isHalfTick) { // move everything
+    while(h){
+        if(!isHalfTick || (isHalfTick && h->doHalfTick)){
             h->xpos += h->xdir;
             h->ypos += h->ydir;
+            //h->doHalfTick = 0;
+            if(h->stop){
+                h->xdir = 0;
+                h->ydir = 0;
+            }
         }
-        else if(h->text[0]='&' && isUserMotion){ // it was a half tick and isUserMotion
-            h->xpos += h->xdir;
-            h->ypos += h->ydir;
-        }
-        if(h->stop) {
-            h->xdir = 0;
-            h->ydir = 0;
-            h->stop = 0;
-        }
-        struct entity* next = h->next;
-//        if(h->xpos < 1){
-//            if(h->text[0]==0){
-//                pop_entity(h);
-//                delete_entity(h);
-//            }
-//            h->xpos = 1;
-//            h->text++;
-//        }
-//        if(h->xpos + h->length > 45){
-//            *(h->text + h->length - 1) = 0;
-//            h->length -= 1;
-//            if(h->length == 0){
-//                pop_entity(h);
-//                delete_entity(h);
-//            }
-//
-        if(h->xpos<1 || (h->xpos+h->length)>45 || h->ypos<1 || h->ypos>14){
-            pop_entity(h);
-            delete_entity(h);
-        }
-        h = next;
+        h = h->next;
     }
-    isUserMotion = 0;
-    isHalfTick = !isHalfTick; // next timer is the opposite of this
-    return;
+    isHalfTick = !isHalfTick;
 }
 
 void set_frog_dir(char c){
@@ -187,7 +167,6 @@ void set_frog_dir(char c){
         h->ydir = 0;
     }
     h->stop = 1;
-    isUserMotion = 1;
 }
 
 int main(void)
@@ -196,17 +175,45 @@ int main(void)
     printf(clear_screen);
     printf(home_cursor);
     printf(hide_cursor);
-    //draw_board();
-    struct entity* gator = create_entity(40, 5, -1, 0, 6, 0, green, "Aaaaaa");
-    struct entity* l = create_entity(12, 10, 1, 0, 6, 0, brown, "LLLLLL");
-    struct entity* frog = create_entity(10, 10, 1, 0, 1, 0, "", "&");
-    push_back(gator);
-    push_back(l);
-    push_back(frog);
-    //test();
     timer0_init();
-    while(1){}
-    //clear_entities();
-    //move_cursor(10,10);
-	return 0;
+    struct entity* g1 = create_entity(20, 5, -1, 0, 6, 0, 0, "Aaaaaa");
+    struct entity* g2 = create_entity(20, 6, 1, 0, 6, 0, 0, "Aaaaaa");
+    struct entity* frog = create_entity(10, 6, 0, 0, 1, 1, 0, "&");
+    push_back(g1);
+    push_back(g2);
+    push_back(frog);
+    while(1);
 }
+
+//void draw_entity(struct entity* e) {
+//    move_cursor(e->ypos, e->xpos);
+//    printf(e->text);
+//}
+//void draw_entities() {
+//    struct entity* h = head;
+//    while (h) {
+//        draw_entity(h);
+//        h = h->next;
+//    }
+//}
+//void move_cursor(signed char x, signed char y) {
+//    printf(escape);
+//    char xstring[3];
+//    char ystring[3];
+//    itoa(x+1, xstring);
+//    itoa(y+1, ystring);
+//    printf(xstring);
+//    printf(";");
+//    printf(ystring);
+//    printf("H");
+//}
+//void print_entity(struct entity* e){
+//    printf("xpos = %i\n", e->xpos);
+//    printf("ypos = %i\n", e->ypos);
+//    printf("xdir = %i\n", e->xdir);
+//    printf("ydir = %i\n", e->ydir);
+//    printf(e->color);
+//    printf(e->text);
+//    printf(white);
+//    printf("\n");
+//}
