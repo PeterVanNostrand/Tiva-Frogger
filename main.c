@@ -8,6 +8,7 @@ extern void timer0_init(void);
 extern void test(void);
 extern void draw_board(void);
 extern void clear_board(void);
+extern void end_game(void);
 
 char escape[3] = { 27, '[', 0 };
 char white[8] = { 27, '[', '3', '7', ';', '0', 'm', 0 };
@@ -16,11 +17,13 @@ char brown[20] = {27,'[','3','8',';','2',';','1','3', '9', ';','0','6','9',';','
 char clear_screen[6] = {27, '[', '2' , 'J', 0};
 char home_cursor[8] = {27, '[', '1', ';', '1', 'H', 0};
 char hide_cursor[7] = {27, '[', '?', '2', '5', 'l', 0};
-char* alligator = "Aaaaaa";
-char* log = "LLLLLL";
 struct entity* head = NULL;
 struct entity* tail = NULL;
+struct entity* frog = NULL;
 char isHalfTick = 0;
+char playing = 1;
+int score = 0;
+char lives = 4;
 
 char board[] =  "|---------------------------------------------|\r\n"
                 "|*********************************************|\r\n"
@@ -38,7 +41,6 @@ char board[] =  "|---------------------------------------------|\r\n"
                 "|                                             |\r\n"
                 "|.............................................|\r\n"
                 "|---------------------------------------------|";
-
 
 struct entity {
     struct entity *prev, *next;
@@ -93,6 +95,10 @@ void delete_entity(struct entity* e) {
 void board_add_entities(){
     struct entity* h = head;
     while (h) {
+        if(h==frog){
+            h = h->next;
+            continue;
+        }
         if(h->xpos > 45 || (h->xpos + h->length - 1) < 1){
             struct entity* next = h->next;
             pop_entity(h);
@@ -115,6 +121,18 @@ void board_add_entities(){
             board[base+i] = textbase[i];
         }
         h = h->next;
+    }
+}
+
+void loose_life(){
+    lives--;
+    frog->xpos = 22;
+    frog->ypos = 14;
+    frog->xdir = 0;
+    frog->ydir = 0;
+    if(lives==0){
+        playing = 0;
+        end_game();
     }
 }
 
@@ -146,42 +164,62 @@ void move_entities(){
     isHalfTick = !isHalfTick;
 }
 
+void check_collisions(){
+    if(!frog) return;
+    char charAtFrog = board[frog->ypos*49 + frog->xpos];
+    if(charAtFrog=='|' || charAtFrog=='-' || charAtFrog=='A' || charAtFrog=='C' || charAtFrog=='#'  || charAtFrog=='H' || (charAtFrog==' ' && frog->ypos>=3 && frog->ypos<=6)){
+        loose_life();
+    }
+    if(charAtFrog=='a' || charAtFrog=='L' || charAtFrog=='O' || charAtFrog=='T'){
+        frog->doHalfTick = 0;
+        if(frog->ypos%2 == 1)
+            frog->xdir = -1;
+        else
+            frog->xdir = 1;
+    }
+    board[frog->ypos*49 + frog->xpos] = '&';
+}
+
 void set_frog_dir(char c){
-    struct entity* h = head;
-    while(h && h->text[0]!='&') h = h->next;
-    if(!h) return;
+    if(!frog) return;
     if(c=='W' || c=='w'){
-        h->xdir = 0;
-        h->ydir = -1;
+        frog->xdir = 0;
+        frog->ydir = -1;
+        score += 10;
     }
     else if(c=='S' || c=='s'){
-        h->xdir = 0;
-        h->ydir = 1;
+        frog->xdir = 0;
+        frog->ydir = 1;
+        if(score>=10) score -= 10;
     }
     else if(c=='A' || c=='a'){
-        h->xdir = -1;
-        h->ydir = 0;
+        frog->xdir = -1;
+        frog->ydir = 0;
     }
     else if(c=='D' || c=='d'){
-        h->xdir = 1;
-        h->ydir = 0;
+        frog->xdir = 1;
+        frog->ydir = 0;
     }
-    h->stop = 1;
+    frog->doHalfTick = 1;
+    frog->stop = 1;
 }
 
 int main(void)
 {
+    int a=2, b=3;
     uart_init();
     printf(clear_screen);
     printf(home_cursor);
     printf(hide_cursor);
+    printf(white);
     timer0_init();
     struct entity* g1 = create_entity(20, 5, -1, 0, 6, 0, 0, "Aaaaaa");
     struct entity* g2 = create_entity(20, 6, 1, 0, 6, 0, 0, "Aaaaaa");
-    struct entity* frog = create_entity(10, 6, 0, 0, 1, 1, 0, "&");
+    struct entity* mfrog = create_entity(22, 7, 0, 0, 1, 1, 0, "&");
     push_back(g1);
     push_back(g2);
-    push_back(frog);
+    push_back(mfrog);
+    frog = mfrog;
     while(1);
 }
 

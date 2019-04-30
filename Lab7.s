@@ -38,11 +38,14 @@ score_string:	.string "000", 0
 	.global dec_to_ascii
 	.global draw_board
 	.global move_entities
-	;.global draw_entities
-	;.global test
 	.global set_frog_dir
 	.global board_add_entities
 	.global clear_board
+	.global end_game
+	.global check_collisions
+	.global playing
+	.global score
+	.global itoa
 
 UART0: 			.field 	0x4000C000, 32
 TIMER0:			.field	0x40030000,	32	; base address of Timer0
@@ -114,6 +117,26 @@ clear_exit:
 	MOV PC, LR
 ;===============================End Clear Board==========================================
 
+draw_score:
+	STMFD SP!, {r0-r11, LR}
+	MOVW r4, score_cursor
+	MOVT r4, score_cursor
+	BL output_string
+	MOVW r4, score_label
+	MOVT r4, score_label
+	BL output_string
+	MOVW r0, score
+	MOVT r0, score
+	LDR r0, [r0]
+	MOVW r1, score_string
+	MOVT r1, score_string
+	BL itoa
+	MOVW r4, score_string
+	MOVT r4, score_string
+	BL output_string
+	LDMFD SP!, {r0-r11, LR}
+	MOV PC, LR
+
 draw_board: ; AAPCS Compliant - Register Invariant
 ;==============================Start Draw Board==========================================
 	; clears the current board and redraws the updated board
@@ -134,24 +157,6 @@ test:
 	LDMFD SP!, {r0-r11, LR}
 	MOV PC, LR
 
-draw_score:
-;==============================Start Draw Score==========================================
-	STMFD SP!, {r0-r11, LR}
-	ADR r4, score_cursor	; move cursor to location of score counter
-	BL output_string
-	ADR r4, score_label		; draw the score label
-	BL output_string
-	MOV r6, r7				; load score into r0
-	MOVW r7, score_string	; load score value string address into r1
-	MOVT r7, score_string
-	BL dec_to_ascii			; convert score the string, result stored in score_string
-	MOVW r4, score_string	; load score value string address into r1
-	MOVT r4, score_string
-	BL output_string
-	LDMFD SP!, {r0-r11, r4, LR}
-	MOV PC, LR
-;===============================End Draw Score===========================================
-
 Timer0Handler: ; Register Invariant
 ;============================Start Timer0 Handler========================================
 	STMFD SP!, {r0-r11, LR}		; spill the current register onto stack
@@ -159,10 +164,23 @@ Timer0Handler: ; Register Invariant
 	LDRB r5, [r4, #0x024]		; load GPTM interrupt clear byte
 	ORR r5, r5, #1				; set last bit to clear interrupt
 	STRB r5, [r4, #0x024]		; store the byte
-	BL clear_board
+	MOVW r4, playing
+	MOVT r4, playing
+	LDRB r5, [r4]
+	CMP r5, #0
+	BEQ Timer0Exit
+
 	BL move_entities
+	BL clear_board
 	BL board_add_entities
+	BL check_collisions
+	MOVW r4, playing
+	MOVT r4, playing
+	LDRB r5, [r4]
+	CMP r5, #0
+	BEQ Timer0Exit
 	BL draw_board
+	BL draw_score
 Timer0Exit:
 	LDMFD SP!, {r0-r11, LR}		; restore the registers state
 	BX LR						; return to execution
@@ -187,26 +205,11 @@ uart0_exit:
 	BX LR
 ;==============================End UART0 Handler=========================================
 
-check_collisions: ; AAPCS Compliant - modifies r0, r1
-;===========================Start Check Collisions=======================================
-	MOVW r1, board				; load address of board
-	MOVT r1, board
-	MOV r2, #44
-	MUL r2, r2, r9				; multiply ypos by 44 to get the row offset
-	ADD r2, r2, r8				; add xpos to get the total ofset=(row*width)+col
-	LDRB r0, [r1, r2]
-	CMP r0, #32					; if the next location of the snake is not an empty space
-	BNE end_game
-	MOV PC, LR
-;============================End Check Collisions========================================
-
 end_game:
 ;=============================Start End Game=============================================
 	STMFD SP!, {LR}
 	BL clear_board				; reset
 	; reset all values to intitial
-	MOV r10, #0					; xdir - holds horizontal direction of snake (+)=right (-)=left
-	MOV r11, #0					; ydir - holds vertical direction of snake (+)=down (-)=up
 	ADR r4, clear_screen		; clear the screen to remove the old board
 	BL output_string
 	ADR r4, home_cursor
@@ -219,28 +222,7 @@ end_game:
 	MOVT r4, end_message
 	BL output_string
 	ADR r4, text_white
-	BL output_string
-	MOVW r4, score_end_cur
-	MOVT r4, score_end_cur
-	BL output_string
-	ADR r4, score_label		; draw the score label
-	BL output_string
-	MOV r6, r7				; load score into r0
-	MOVW r7, score_string	; load score value string address into r1
-	MOVT r7, score_string
-	BL dec_to_ascii			; convert score the string, result stored in score_string
-	MOVW r4, score_string	; load score value string address into r1
-	MOVT r4, score_string
-	BL output_string
-	MOVW r4, play_cur
-	MOVT r4, play_cur
-	BL output_string
-	MOVW r4, play_again
-	MOVT r4, play_again
-	BL output_string
-	MOV r7, #0					; score - hold current number of snake (*)'s on board
-	MOV r8, #20					; xpos - hold current horizontal location of snake head
-	MOV r9, #8					; ypos- holds current vertical location of snake head
+	BL output_string				; ypos- holds current vertical location of snake head
 	LDMFD SP!, {LR}
 	MOV PC, LR
 ;==============================End End Game==============================================

@@ -221,7 +221,7 @@ output_string_exit:
 
 printf:
 ;=================================Start printf===========================================
-	; Transmits a null-terminated string over the UART interface. The base address of the string should be passed in r4
+	; Transmits a null-terminated string over the UART interface. The base address of the string should be passed in r0
 	STMFD SP!, {lr}				; Store the link register on the stack
 	MOV r4, r0
 	BL output_string
