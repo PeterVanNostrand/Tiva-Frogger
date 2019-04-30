@@ -7,6 +7,8 @@
 	.global dec_to_ascii
 	.global printf
 	.global itoa
+	.global div_and_mod
+	.global itoa_pad
 
 LOCKCODE:		.field	0x4C4F434B		; special value written to lock registers to allow use
 SYSCLKCTRL:		.field	0x400FE108, 32	; clock control register
@@ -39,7 +41,9 @@ INTERVAL:		.field	4000000, 32		; number of clock ticks between interrupts
 
 timer0_init: ; AAPCS Compliant - Register Invariant
 ;==============================Start Timer0Init==========================================
-	STMFD SP!, {r4-r6, LR}
+	; Pass timer 0 interval in r0
+	STMFD SP!, {r4-r7, LR}
+	MOV r7, r0
 	; Connect 16MHz oscillator on Tiva board to Timer0
 	MOV r4, #0xE604			; Load address of RCGCTIMER (timer control register)
 	MOVT r4, #0x400F
@@ -78,8 +82,7 @@ timer0_init: ; AAPCS Compliant - Register Invariant
 	; Set interrupt interval
 	MOV r4, #0x0028			; load address of GPTM Timer a interval register
 	MOVT r4, #0x4003
-	LDR r5, INTERVAL		; Load 4x10^6 into r5 s.t. the clock interrupts every .25 second
-	STR r5, [r4]			; store the value into the interval register
+	STR r7, [r4]			; store the value into the interval register
 
 	; Set timer to interrupt when top limit of timer is reached
 	MOV r4, #0x0018			; load address of GPTM interrupt mask register
@@ -103,7 +106,7 @@ timer0_init: ; AAPCS Compliant - Register Invariant
 	ORR r5, r5, #1			; set bit 0 TAEN to 1 to enable timer
 	STR r5, [r4]
 
-	LDMFD SP!, {r4-r6, LR}
+	LDMFD SP!, {r4-r7, LR}
 	MOV PC, LR
 ;===============================END Timer0Init===========================================
 
@@ -334,6 +337,21 @@ itoa:
 	MOV PC, LR
 ;====================================itod End================================================
 
+itoa_pad:
+;===================================itod Start===============================================
+	; Takes the decimal value from r0 and it returns as a string starting at the base in r1
+	; the string will have a length given by r2
+	STMFD SP!, {r1, r6-r9, LR}
+	MOV r6, r0
+	MOV r7, r1
+	MOV r8, r2
+	BL dec_to_ascii_fixed
+	MOV r0, r7
+	LDMFD SP!, {r1, r6-r9, LR}
+	MOV PC, LR
+;====================================itod End================================================
+
+
 dec_to_ascii:
 ;==============================Start dec_to_ascii========================================
 	; Takes the decimal value from r6 and saves it to the memory addres in r7 as an ascii string
@@ -357,6 +375,36 @@ d2a_store:
 	SUB r8, r8, #1
 	CMP r8, #0					; is r8=0?
 	BGT d2a_store				; if r8>0 there are still characters on the stack, store the next
+	MOV r1, #0					; Null terminate the string
+	STRB r1, [r7]
+	LDMFD SP!, {LR}				; Pop link register from stack
+	MOV PC, LR					; exitlib subroutine
+;===============================End dec_to_ascii=========================================
+
+dec_to_ascii_fixed:
+;==============================Start dec_to_ascii========================================
+	; Takes the decimal value from r6 and saves it to the memory addres in r7 as an ascii string
+	; the string willl have a length as given by the value in r8
+	STMFD SP!, {lr}
+	MOV r9, r8
+d2af_loop:
+	MOV r1, r6					; Get ready to div_and_mod the result
+	MOV r0, #10					; Divide by 10 to right shift the decimal value
+	BL div_and_mod				; Performs r1/r0 returns the quotient r0 and the remainder in r1
+	MOV r6, r0					; right shifted decimal value
+	; r1 is the modulus result from the ones place in decimal form
+	ADD r1, r1, #48				; add 48 to make the ascii equivalent
+	STMFD SP!, {r1}				; store the ASCII character on the stack
+	SUB r8, #1
+	CMP r8, #0					; is r0=0?
+	BNE d2af_loop				; if r6 is not 0, loop again, otherwise fall through
+	; LOOP IS DONE, r8 holds number of characters stored on stack
+d2af_store:
+	LDMFD SP!, {r1}				; Pop the ASCII character from the stack
+	STRB r1, [r7], #1			; stores the ASCII character to the string and increments r7
+	SUB r9, r9, #1
+	CMP r9, #0					; is r8=0?
+	BGT d2af_store				; if r8>0 there are still characters on the stack, store the next
 	MOV r1, #0					; Null terminate the string
 	STRB r1, [r7]
 	LDMFD SP!, {LR}				; Pop link register from stack

@@ -2,9 +2,10 @@
 
 extern int lab7(void);
 extern void printf(char*);
-extern void uart_init(void);
+extern void uart_init();
 extern void itoa(int x, char* string);
-extern void timer0_init(void);
+extern void itoa_pad(int x, char* string, int length);
+extern void timer0_init(unsigned int timerInterval);
 extern void test(void);
 extern void draw_board(void);
 extern void clear_board(void);
@@ -24,6 +25,11 @@ char isHalfTick = 0;
 char playing = 1;
 int score = 0;
 char lives = 4;
+char level = 10; // level 0 is pregame mode
+unsigned int timerInterval[20] = {8000000,8000000,7600000,7200000,6800000,6400000,6000000,5600000,5200000,4800000,4400000,4000000,3600000,3200000,2800000,2400000,2000000,1600000,1200000,800000};
+signed char levelTicks[20] = {60,60,53,44,35,25,13,14,15,17,18,20,22,25,29,33,40,50,67,100};
+signed char levelSeconds[20] = {60,60,50,40,30,20,10,10,10,10,10,10,10,10,10,10,10,10,10,10};
+signed char levelTime;
 
 char board[] =  "|---------------------------------------------|\r\n"
                 "|*********************************************|\r\n"
@@ -124,16 +130,19 @@ void board_add_entities(){
     }
 }
 
+char getTimeSeconds(){
+    float flevelTime = levelTime, flevelSeconds=levelSeconds[level], flevelTicks = levelTicks[level];
+    return (char)(flevelTime*flevelSeconds/flevelTicks);
+}
+
 void loose_life(){
     lives--;
     frog->xpos = 22;
     frog->ypos = 14;
     frog->xdir = 0;
     frog->ydir = 0;
-    if(lives==0){
-        playing = 0;
+    if(lives==0)
         end_game();
-    }
 }
 
 void clear_entities() {
@@ -206,13 +215,13 @@ void set_frog_dir(char c){
 
 int main(void)
 {
-    int a=2, b=3;
+    levelTime = levelTicks[level];
     uart_init();
     printf(clear_screen);
     printf(home_cursor);
     printf(hide_cursor);
     printf(white);
-    timer0_init();
+    timer0_init(timerInterval[level]);
     struct entity* g1 = create_entity(20, 5, -1, 0, 6, 0, 0, "Aaaaaa");
     struct entity* g2 = create_entity(20, 6, 1, 0, 6, 0, 0, "Aaaaaa");
     struct entity* mfrog = create_entity(22, 7, 0, 0, 1, 1, 0, "&");
