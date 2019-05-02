@@ -1,5 +1,22 @@
 	.data
 
+board:			.string	"|---------------------------------------------|", 0x0D,0x0A
+bline1:			.string "|*********************************************|", 0x0D,0x0A
+bline2:			.string "|*****     *****     *****     *****     *****|", 0x0D,0x0A
+bline3:			.string "|                                             |", 0x0D,0x0A
+bline4:			.string "|                                             |", 0x0D,0x0A
+bline5:			.string "|                                             |", 0x0D,0x0A
+bline6:			.string "|                                             |", 0x0D,0x0A
+bline7:			.string "|.............................................|", 0x0D,0x0A
+bline8:			.string "|                                             |", 0x0D,0x0A
+bline9:			.string "|                                             |", 0x0D,0x0A
+bline10:		.string "|                                             |", 0x0D,0x0A
+bline11:		.string "|                                             |", 0x0D,0x0A
+bline12:		.string "|                                             |", 0x0D,0x0A
+bline13:		.string "|                                             |", 0x0D,0x0A
+bline14:		.string "|.............................................|", 0x0D,0x0A
+bborderB:		.string	"|---------------------------------------------|", 0
+
 emptyboard:		.string	"|---------------------------------------------|", 0x0D,0x0A
 ebline1:		.string "|*********************************************|", 0x0D,0x0A
 ebline2:		.string "|*****     *****     *****     *****     *****|", 0x0D,0x0A
@@ -23,6 +40,17 @@ end_2:			.string "██║  ███╗███████║██╔██
 end_3:			.string "██║   ██║██╔══██║██║╚██╔╝██║██╔══╝      ██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗" , 0x0D,0x0A
 end_4:			.string "╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗    ╚██████╔╝ ╚████╔╝ ███████╗██║  ██║" , 0x0D,0x0A
 end_5:			.string "╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝     ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝" , 0x0D,0x0A, 0
+
+pause_screen:	.string	27,"[32;1m"
+pause1:			.string	"██████╗  █████╗ ███╗   ███╗███████╗    ██████╗  █████╗ ██╗   ██╗███████╗███████╗██████╗" , 0x0D,0x0A
+pause2:			.string	"██╔════╝ ██╔══██╗████╗ ████║██╔════╝    ██╔══██╗██╔══██╗██║   ██║██╔════╝██╔════╝██╔══██╗" , 0x0D,0x0A
+pause3:			.string	"██║  ███╗███████║██╔████╔██║█████╗      ██████╔╝███████║██║   ██║███████╗█████╗  ██║  ██║" , 0x0D,0x0A
+pause4:			.string	"██║   ██║██╔══██║██║╚██╔╝██║██╔══╝      ██╔═══╝ ██╔══██║██║   ██║╚════██║██╔══╝  ██║  ██║" , 0x0D,0x0A
+pause5:			.string	"╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗    ██║     ██║  ██║╚██████╔╝███████║███████╗██████╔╝" , 0x0D,0x0A
+pause6:			.string	" ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝    ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝╚═════╝" , 0x0D,0x0A
+pause7:			.string 27,"[37;0m"
+pause8:			.string	"                               PRESS SPACE TO RESUME PLAYING",0
+
 score_string:	.string "XXXX", 0
 lives_string:	.string "X", 0
 time_string:	.string	"XX", 0
@@ -40,7 +68,7 @@ level_string:	.string	"XX", 0
 	.global dec_to_ascii
 	.global draw_board
 	.global move_entities
-	.global set_frog_dir
+	.global char_handler
 	.global board_add_entities
 	.global clear_board
 	.global end_game
@@ -58,10 +86,20 @@ level_string:	.string	"XX", 0
 	.global levelSeconds
 	.global isHalfTick
 	.global getTimeSeconds
+	.global sysTime
+	.global text_red
+	.global clear_screen
+	.global hide_cursor
+	.global white
+	.global home_cursor
+	.global welcome_screen
+	.global ready_screen
+	.global pause_screen
+	.global Timer1Handler
 
 UART0: 			.field 	0x4000C000, 32
 TIMER0:			.field	0x40030000,	32	; base address of Timer0
-welcome:		.string	"Welcome to Peter and Komas's CSE 379 Lab 6!", 0
+TIMER1:			.field	0x40031000,	32	; base address of Timer1
 clear_screen:	.string 27, "[2J", 0		; escape sequence to clear screen
 home_cursor:	.string 27, "[1;1H", 0		; escape sequence to move cursor to top left of terminal
 board_row:		.string	27, "[1;1H", 0
@@ -79,43 +117,48 @@ score_label:	.string "SCORE: ", 0
 lives_label:	.string "LIVES: ", 0
 time_label:		.string	"TIME: ", 0
 level_label:	.string "LEVEL: ", 0
-play_again:		.string "PRESS SPACE TO PLAY AGAIN", 0
-instructions:	.string " TO START PRESS A DIRECTION KEY. THE SNAKE", 0
-instructions1:	.string	"     CAN BE MOVED USING IJKM OR WASD", 0
-instructions2:	.string "   UP=I/W, DOWN=M/S, LEFT=K/D, RIGHT=J/A", 0
-spaces:		.string "                                      ", 0
+
+escape:			.string	27,"[",0
+white: 			.string 27,"[37;0m",0;
+green:			.string 27,"[32;1m",0
+brown:			.string 27,"[38;2;139;069;019m",0
 
 score_value:	.field 0, 32
 sys_time:		.field 0, 32
 level_time:		.field 240, 32
 timer_interval:	.field 8000000, 32
 
-lab7:
-	STMFD SP!, {LR}
-main:
-	BL uart_init				; initialize uart and corresponding interrupts
-	ADR r4, clear_screen		; clear the screen to remove the old board
-	BL output_string
-	ADR r4, home_cursor
-	BL output_string
-	ADR r4, hide_cursor
-	BL output_string
-	ADR r4, text_white
-	BL output_string
-	;ADR r4, welcome				; print welcome message
-	;BL output_line
-	;ADR r4, instructions
-	;BL output_line
-	;ADR r4, instructions1
-	;BL output_line
-	;ADR r4, instructions2
-	;BL output_line
-	;BL update_snake
-	BL draw_board				; draw the game board to load the game
-	BL draw_score
-	BL timer0_init				; setup timer to handle further board updates
-run_loop:
-	B run_loop
+welcome_screen:	.string	"", 0x0D,0x0A
+w1:				.string	"		Welcome to Peter and Komas's Final Project!", 0x0D,0x0A
+w2:				.string	"", 0x0D,0x0A
+w3:				.string	"This is an implementation of the class videogame frogger in which the user", 0x0D,0x0A
+w4:				.string	"controls a frog trying to cross a dangerous road and river to return home.", 0x0D,0x0A
+w5:				.string	"In order to win this game you must successfully navigate two frogs across", 0x0D,0x0A
+w6:				.string	"the road, across the river, and into an unoccupied home space before time", 0x0D,0x0A
+w7:				.string	"runs out. But be careful! Getting hit by a car, truck, standing on an", 0x0D,0x0A
+w8:				.string	"alligator's mouth or falling in the water will all result in you death!", 0x0D,0x0A
+w9:				.string	"Four death's or running out of time on the clock will cause you to loose", 0x0D,0x0A
+w10:			.string	"the game. Your current number of lives is displayed on the screen and on", 0x0D,0x0A
+w11:			.string	"board's LEDs. You the frog can move twice as fast as the objects around you.", 0x0D,0x0A
+w12:			.string	"Once two frogs make it home the game will proceed to a new level and things", 0x0D,0x0A
+w13:			.string	"will get faster. If at any point you need a break, just press 'ESC' or any", 0x0D,0x0A
+w14:			.string	"key on the keypad to pause the game.", 0x0D,0x0A
+w15:			.string	"", 0x0D,0x0A
+w16:			.string	"Instructions:", 0x0D,0x0A
+w17:			.string	" - The frog is moved using the WASD keys, W=UP, S=DOWN, D=RIGHT, A=LEFT", 0x0D,0x0A
+w18:			.string	" - Press 'ESC' or a key on the keypad to pause the game", 0x0D,0x0A
+w19:			.string	" - When ready press 'SPACE' to start playing!", 0
+
+;	RGB LED CODES
+;	0 = OFF
+;	1 = RED
+;	2 = BLUE
+;	3 = PURPLE
+;	4 = GREEN
+;	5 = YELLOW
+;	6 = CYAN
+;	7 = WHITE
+; ASCII fonts http://patorjk.com/software/taag/ "ANSI Shadow"
 
 clear_board: ; AAPCS Compliant - Register Invariant
 ;==============================Start Clear Board=========================================
@@ -136,6 +179,7 @@ clear_exit:
 ;===============================End Clear Board==========================================
 
 draw_score:
+;========================================================================================
 	STMFD SP!, {r0-r11, LR}
 	MOVW r4, score_cursor
 	MOVT r4, score_cursor
@@ -155,8 +199,10 @@ draw_score:
 	BL output_string
 	LDMFD SP!, {r0-r11, LR}
 	MOV PC, LR
+;========================================================================================
 
 draw_lives:
+;========================================================================================
 	STMFD SP!, {r0-r11, LR}
 	MOVW r4, lives_cursor
 	MOVT r4, lives_cursor
@@ -175,8 +221,10 @@ draw_lives:
 	BL output_string
 	LDMFD SP!, {r0-r11, LR}
 	MOV PC, LR
+;========================================================================================
 
 draw_time:
+;========================================================================================
 	STMFD SP!, {r0-r11, LR}
 	MOVW r4, time_cursor
 	MOVT r4, time_cursor
@@ -194,8 +242,10 @@ draw_time:
 	BL output_string
 	LDMFD SP!, {r0-r11, LR}
 	MOV PC, LR
+;========================================================================================
 
 draw_level:
+;========================================================================================
 	STMFD SP!, {r0-r11, LR}
 	MOVW r4, level_cursor
 	MOVT r4, level_cursor
@@ -214,20 +264,25 @@ draw_level:
 	BL output_string
 	LDMFD SP!, {r0-r11, LR}
 	MOV PC, LR
+;========================================================================================
 
 track_time:
+;========================================================================================
 	STMFD SP!, {r0-r11, LR}
+	; if its not a half tick (i.e. is a full tick)
 	MOVW r4, isHalfTick
 	MOVT r4, isHalfTick
 	LDRB r4, [r4]
 	CMP r4, #0
 	BEQ track_time_exit
+	; increment the level time
 	MOVW r4, levelTime
 	MOVT r4, levelTime
 	LDRB r5, [r4]
 	SUB r5, #1
+	; if the time is < 0 zero
 	CMP r5, #0
-	BLE track_time_end_game
+	BLE track_time_end_game ; end the game
 	STRB r5, [r4]
 track_time_exit:
 	LDMFD SP!, {r0-r11, LR}
@@ -238,6 +293,7 @@ track_time_end_game:
 	LDMFD SP!, {r0-r11, LR}
 	MOV r0, #1
 	MOV PC, LR
+;========================================================================================
 
 draw_board: ; AAPCS Compliant - Register Invariant
 ;==============================Start Draw Board==========================================
@@ -259,16 +315,17 @@ Timer0Handler: ; Register Invariant
 	LDRB r5, [r4, #0x024]		; load GPTM interrupt clear byte
 	ORR r5, r5, #1				; set last bit to clear interrupt
 	STRB r5, [r4, #0x024]		; store the byte
+	; if the user is playing
 	MOVW r4, playing
 	MOVT r4, playing
 	LDRB r5, [r4]
 	CMP r5, #0
 	BEQ Timer0Exit
-
+	; move stuff
 	BL move_entities
 	BL clear_board
 	BL board_add_entities
-	BL check_collisions
+	BL check_collisions ; will updates lives / end game if lost
 	; if the user is not playing, skip
 	MOVW r4, playing
 	MOVT r4, playing
@@ -289,6 +346,24 @@ Timer0Exit:
 	BX LR						; return to execution
 ;=============================End Timer0 Handler=========================================
 
+Timer1Handler:
+	STMFD SP!, {r0-r11, LR}		; spill the current register onto stack
+	LDR r4, TIMER1				; load base address of TIMER0
+	LDRB r5, [r4, #0x024]		; load GPTM interrupt clear byte
+	ORR r5, r5, #1				; set last bit to clear interrupt
+	STRB r5, [r4, #0x024]		; store the byte
+
+	; increment the system time
+	MOVW r4, sysTime
+	MOVT r4, sysTime
+	LDR r5, [r4]
+	ADD r5, #1
+	STR r5, [r4]
+Timer1Exit:
+	LDMFD SP!, {r0-r11, LR}		; restore the registers state
+	BX LR						; return to execution
+
+
 Uart0Handler: ; Register Invariant
 ;=============================Start UART0 Handler========================================
 	STMFD SP!, {r0-r1,LR}
@@ -302,7 +377,7 @@ Uart0Handler: ; Register Invariant
 	LDR r1, UART0
 	LDRB r0, [r1]
 
-	BL set_frog_dir
+	BL char_handler
 uart0_exit:
 	LDMFD SP!, {r0-r1,LR}		; restore the register values
 	BX LR
@@ -333,6 +408,25 @@ end_game:
 	LDMFD SP!, {LR}
 	MOV PC, LR
 ;==============================End End Game==============================================
+
+ready_screen:
+;========================================================================================
+	STMFD SP!, {r0, r11, LR}
+	MOVW r4, clear_screen
+	MOVT r4, clear_screen
+	BL output_string
+	MOVW r4, home_cursor
+	MOVT r4, home_cursor
+	BL output_string
+	MOVW r4, hide_cursor
+	MOVT r4, hide_cursor
+	BL output_string
+	MOVW r4, white
+	MOVT r4, white
+	BL output_string
+	LDMFD SP!, {r0, r11, LR}
+	MOV PC, LR
+;========================================================================================
 
 exit:
 	LDMFD SP!, {lr}				; Pop link register from stack

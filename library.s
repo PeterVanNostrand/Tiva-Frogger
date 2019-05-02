@@ -9,6 +9,10 @@
 	.global itoa
 	.global div_and_mod
 	.global itoa_pad
+	.global init_rgb_led
+	.global illuminate_RGB_LED
+	.global timer1_init
+	.global timer1_stop
 
 LOCKCODE:		.field	0x4C4F434B		; special value written to lock registers to allow use
 SYSCLKCTRL:		.field	0x400FE108, 32	; clock control register
@@ -410,6 +414,148 @@ d2af_store:
 	LDMFD SP!, {LR}				; Pop link register from stack
 	MOV PC, LR					; exitlib subroutine
 ;===============================End dec_to_ascii=========================================
+
+init_rgb_led:
+;=================================START RGB LED Setup==========================================
+	; Setup RGB LED on PORTF R=Pin1, B=Pin2, G=Pin3
+	STMFD SP!, {LR}			; Store register r0 on stack
+	LDR r0, PORTF			; load base address of PORTF
+	; Enable Clock
+	LDR r1, SYSCLKCTRL		; Load address of SYSCTL_GCGC2_R (clock control register)
+	LDRB r2, [r1]			; load the control byte
+	ORR r2, r2, #0x20		; set bit 5 to enable clock for PORTF
+	STRB r2, [r1]			; store the control byte
+	BL delay				; delay to allow clock to start, w/o this a bus fault occurs
+
+	; Unlock PORTF
+	LDR r2, LOCKCODE		; load lockcode
+	STRB r2, [r0, #LOCK]	; store the lcokcode
+	MOV r1, #0x0524			; load offset of GPIO_PORTF_CR_R register
+	MOV r2, #0xE			; allow changes to PF3-PF1
+	STRB r2, [r0, r1]
+
+	; Disable analog functionality on PORTF
+	;MOV r1, #0x0528			; load offset of GPIO_PORTF_AMSEL_R
+	;MOV r2, #0
+	;STRB r2, [r0, r1]
+
+	; PCTL GPIO on PF4-0
+	;MOV r1, #0x052C			; load offset of GPIO_PORTF_PCTL_R
+	;MOV r2, #0
+	;STRB r2, [r0, r1]
+
+	; PF4,PF0 in rest out
+	MOV r2, #0x0E
+	STRB r2, [r0, #DIR]
+
+	; Disable alt function on PF7-0
+	;MOV r1, #0x0420			; load offset of GPIO_PORTF_AFSEL_R
+	;MOV r2, #0
+	;STRB r2, [r0, r1]
+
+	; Enable pull-up on PF0 and PF4
+	;MOV r1, #0x0510			; load offset of GPIO_PORTF_PUR_R
+	;MOV r2, #0x11
+	;STRB r2, [r0, r1]
+
+	; Enable digital I/O on PF3-PF1
+	MOV r2, #0xE
+	STRB r2, [r0, #DIGITAL]
+	LDMFD sp!, {lr}				; Pop link register from stack
+	MOV PC, LR
+;=============================END RGB LED Setup==========================================
+
+illuminate_RGB_LED:
+;==============================START ILLUMINATE RGB LED========================================
+	; Turns on the RGB LED - uses r0 for parameter
+	; The requested color is passed in r0 as 0b0000XXX0, bit1=R bit2=B bit3=G, X=1 for on
+	LDR r1, PORTF
+	LSL r0, #1
+	STRB r0, [r1, #DATA]
+	MOV PC, LR
+;===============================END ILLUMINATE RGB LED=========================================
+
+timer1_init: ; AAPCS Compliant - Register Invariant
+;==============================Start Timer1Init==========================================
+	; Pass timer 1 interval in r0
+	STMFD SP!, {r4-r7, LR}
+	MOV r7, r0
+	; Connect 16MHz oscillator on Tiva board to Timer0
+	MOV r4, #0xE604			; Load address of RCGCTIMER (timer control register)
+	MOVT r4, #0x400F
+	LDR r5, [r4]			; Load timer control byte
+	ORR r5,	#10b			; Set bit 1 high to enable clock to Timer1
+	STR r5, [r4]			; re-store byte
+	BL delay				; delay to allow clock to stabilize
+	BL delay
+	BL delay
+
+	; Disable timer
+	MOV r4, #0x100C			; load address of GPTM Control Register
+	MOVT r4, #0x4003
+	LDR r5, [r4]
+	BIC r5, r5, #0			; set bit 0 TAEN to 0 to disable timer
+	STR r5, [r4]
+
+	; Set timer for 32-bit Mode
+	MOV r4, #0x1000			; Load address of GPTM Configuration Register
+	MOVT r4, #0x4003
+	LDR r5, [r4]			; Load configuration byte
+	BIC r5, r5, #0			; Set last 3 bits 0
+	BIC r5, r5, #1			; Set last 3 bits 0
+	BIC r5, r5, #2			; Set last 3 bits 0
+	STR r5, [r4]			; re-store byte
+
+	; Put timer into Periodic Mode
+	MOV r4, #0x1004			; Load address of GPTM Timer A Mode register
+	MOVT r4, #0x4003
+	LDR r5, [r4]			; load TAMR
+	BIC r5, r5, #0
+	BIC r5, r5, #1
+	ORR r5, r5, #2			; set TAMR to 2 for periodic mode
+	STR r5, [r4]			; re-store byte
+
+	; Set interrupt interval
+	MOV r4, #0x1028			; load address of GPTM Timer a interval register
+	MOVT r4, #0x4003
+	STR r7, [r4]			; store the value into the interval register
+
+	; Set timer to interrupt when top limit of timer is reached
+	MOV r4, #0x1018			; load address of GPTM interrupt mask register
+	MOVT r4, #0x4003
+	LDR r5, [r4]			; load Timer Interrupt Mask Byte
+	ORR r5, r5, #1			; set bit 0 high to enable Timer A mask
+	STR r5, [r4]			; re-store byte
+
+	; Configure NVIC
+	MOV r4, #0xE100			; load addres of NVIC EN0
+	MOVT r4, #0xE000
+	LDR r5, [r4]			; load EN0
+	MOV r6, #1000000000000000000000b
+	ORR r5, r5, r6			; Set bit 19 to to enable Timer1 interrupt
+	STR r5, [r4]
+
+	; Enable timer
+	MOV r4, #0x100C			; load address of GPTM Control Register
+	MOVT r4, #0x4003
+	LDR r5, [r4]
+	ORR r5, r5, #1			; set bit 0 TAEN to 1 to enable timer
+	STR r5, [r4]
+
+	LDMFD SP!, {r4-r7, LR}
+	MOV PC, LR
+;===============================END Timer1Init===========================================
+
+timer1_stop:
+	STMFD SP!, {r4-r5}
+	; Disable timer
+	MOV r4, #0x100C			; load address of GPTM Control Register
+	MOVT r4, #0x4003
+	LDR r5, [r4]
+	BIC r5, r5, #0			; set bit 0 TAEN to 0 to disable timer
+	STR r5, [r4]
+	LDMFD SP!, {r4-r5}
+	MOV PC, LR
 
 delay: ; AAPCS Compliant
 ;==================================START DELAY===============================================
