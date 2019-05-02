@@ -152,7 +152,10 @@ w10:			.string	"the game. Your current number of lives is displayed on the scree
 w11:			.string	"board's LEDs. You the frog can move twice as fast as the objects around you.", 0x0D,0x0A
 w12:			.string	"Once two frogs make it home the game will proceed to a new level and things", 0x0D,0x0A
 w13:			.string	"will get faster. If at any point you need a break, just press 'ESC' or any", 0x0D,0x0A
-w14:			.string	"key on the keypad to pause the game.", 0x0D,0x0A
+w14:			.string	"key on the keypad to pause the game. Remember that when you get two frogs", 0x0D,0x0A
+w14a:			.string "home the game will move to a new level. This clears your homed frogs, rests", 0x0D,0x0A
+w14b:			.string	"the timer to a new shorter time, and makes things move faster. Watch out!", 0x0D,0x0A
+w24c:			.string "When the game is over, you can always play again by pressing 'SPACE'", 0x0D,0x0A
 w15:			.string	"", 0x0D,0x0A
 w16:			.string	"Instructions:", 0x0D,0x0A
 w17:			.string	" - The frog is moved using the WASD keys, W=UP, S=DOWN, D=RIGHT, A=LEFT", 0x0D,0x0A
