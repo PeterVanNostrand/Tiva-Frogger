@@ -14,20 +14,21 @@ extern void illuminate_RGB_LED(char LED_color);
 extern void ready_screen(void);
 extern void timer1_init(unsigned int timerInterval);
 extern void timer1_stop(void);
+extern void init_keypad(void);
+extern void timer0_stop(void);
+extern void init_leds(void);
+extern illuminate_LEDs(char val);
 extern char board[], welcome_screen[], pause_screen[];
 
 struct entity* head = NULL;
 struct entity* tail = NULL;
 struct entity* frog = NULL;
 char isHalfTick = 0, playing = 0, started = 0;
-int score = 0;
-char lives = 4;
-char level = 0; // level 0 is pregame mode
+signed char lives = 4, level = 0, levelTime, frogsHome=0; // level 0 is pregame mode
 unsigned int timerInterval[20] = {8000000,8000000,7600000,7200000,6800000,6400000,6000000,5600000,5200000,4800000,4400000,4000000,3600000,3200000,2800000,2400000,2000000,1600000,1200000,800000};
 signed char levelTicks[20] = {60,60,53,44,35,25,13,14,15,17,18,20,22,25,29,33,40,50,67,100};
 signed char levelSeconds[20] = {60,60,50,40,30,20,10,10,10,10,10,10,10,10,10,10,10,10,10,10};
-signed char levelTime;
-long unsigned int sysTime=0, r, a = 22695477, m = 4294967295;
+long unsigned int sysTime=0, r, a = 22695477, m = 4294967295, score = 0;
 
 struct entity {
     struct entity *prev, *next;
@@ -35,7 +36,7 @@ struct entity {
     char *text;
 };
 
-int rand(){
+long unsigned int mrand(){
     r = (a*r+1)%m;
     return r;
 }
@@ -97,18 +98,19 @@ char getTimeSeconds(){
 }
 
 void loose_life(){
-    lives--, frog->xpos = 22, frog->ypos = 14, frog->xdir = 0;
+    lives--, frog->xpos = (rand()%44 + 1), frog->ypos = 14, frog->xdir = 0, illuminate_LEDs(lives);;
     if(lives==0) end_game();
 }
 
 void clear_entities() {
-    while (tail->prev) {
-        struct entity* prev = tail->prev;
-        delete_entity(tail);
-        tail = prev;
+    struct entity* e = tail;
+    while (e) {
+        struct entity* prev = e->prev;
+        pop_entity(e);
+        delete_entity(e);
+        e = prev;
     }
-    delete_entity(tail);
-    head = NULL, tail = NULL;
+    head = NULL, tail = NULL, frog = NULL;
 }
 
 void move_entities(){
@@ -116,7 +118,6 @@ void move_entities(){
     while(h){
         if(!isHalfTick || (isHalfTick && h->doHalfTick)){
             h->xpos += h->xdir, h->ypos += h->ydir;
-            //h->doHalfTick = 0;
             if(h->stop) h->xdir = 0, h->ydir = 0;
         }
         h = h->next;
@@ -124,23 +125,89 @@ void move_entities(){
     isHalfTick = !isHalfTick;
 }
 
+void remove_entity_by_char(char c){
+    struct entity* h = head;
+    while(h){
+        if(h->text[0] == c){
+           struct entity* next = h->next;
+           pop_entity(h);
+           delete_entity(h);
+           h = next;
+        }
+        else h = h->next;
+    }
+}
+
+void change_level(){
+    timer0_stop();
+    level += 1, levelTime = levelTicks[level], frogsHome=0, score+=250;
+    remove_entity_by_char('H');
+    timer0_init(timerInterval[level]);
+}
+
 void check_collisions(){
     if(!frog) return;
     char charAtFrog = board[frog->ypos*49 + frog->xpos];
     if(charAtFrog=='|' || charAtFrog=='-' || charAtFrog=='A' || charAtFrog=='C' || charAtFrog=='#'  || charAtFrog=='H' || (charAtFrog==' ' && frog->ypos>=3 && frog->ypos<=6)) loose_life();
-    if(charAtFrog=='a' || charAtFrog=='L' || charAtFrog=='O' || charAtFrog=='T'){
+    else if(charAtFrog=='a' || charAtFrog=='L' || charAtFrog=='O' || charAtFrog=='T'){
         frog->doHalfTick = 0;
         if(frog->ypos%2 == 1) frog->xdir = -1;
         else frog->xdir = 1;
     }
+    else if(frog->ypos==2){
+        if(charAtFrog == '+') score+= 100;
+        push_back(create_entity((((frog->xpos)/10)*10)+6, frog->ypos, 0, 0,  5, 0, 0, "HHHHH"));
+        frog->xpos = (rand()%44 + 1), frog->ypos = 14, frogsHome++, score+=50, score+=getTimeSeconds()*10;
+        if(frogsHome>=2) change_level();
+    }
     board[frog->ypos*49 + frog->xpos] = '&';
+}
+
+signed char row_dir[] = {0, -1,1,-1,1,0,-1,1,-1,1,-1,1};
+char *row_strings[] = {"", "LLLLLL","OO","Aaaaaa","TT","","####","C","####","C","####","C"};
+signed char row_length[] = {0, 6, 2, 6, 2, 0, 4, 1, 4, 1, 4, 1};
+signed char row_pos[] = {0, 45,0,45,0,0,45,1,45,1,45,1};
+signed char check_pos[] = {0, 44,2,44,2,0,44,2,44,2,44,2};
+signed char check_pos2[] = {0, 45,1,45,1,0,45,1,45,1,45,1};
+signed char fly_pos[] = {0, 6, 16, 26, 36};
+
+void generate_entities(){
+    signed char i;
+    for(i=2; i<15; i++){
+        long unsigned int random = mrand();
+        if(i==7) continue;
+        if(i==2 && mrand()%19<3 && board[2*49 + fly_pos[random%4]]==' '){
+            remove_entity_by_char('+');
+            push_back(create_entity(fly_pos[random%4], i, 0, 0, 5, 0, 0, "+++++"));
+        }
+        else if(random%1000==1) remove_entity_by_char('+'); // fly is removed after a random duration of time
+        if(random%19 < 2 && board[i*49 + check_pos[i-2]]==' ' && board[i*49 + check_pos2[i-2]]==' ') push_back(create_entity(row_pos[i-2], i, row_dir[i-2], 0, row_length[i-2], 0, 0, row_strings[i-2]));
+    }
+}
+
+void clear_flies(){
+    struct entity* h = head;
+    while(h){
+
+    }
 }
 
 void char_handler(char c){
     if(c==' '){ // char is 'SPACE'
         if(!started){
             timer1_stop();
-            started = 1, r = sysTime, level=1;
+            char i;
+            r = sysTime, level=1;
+            clear_entities();
+            for(i=0; i<30; i++){
+                generate_entities();
+                board_add_entities();
+                move_entities();
+            }
+            board_add_entities();
+            started = 1, score=0, lives=4, levelTime=levelTicks[level], frogsHome=0, illuminate_LEDs(lives);
+            frog = create_entity(22, 14, 0, 0, 1, 1, 0, "&");
+            push_back(frog);
         }
         ready_screen();
         playing = 1;
@@ -154,7 +221,7 @@ void char_handler(char c){
     }
 
     // frog movement events
-    if(!frog) return;
+    if(!frog || !playing) return;
     if(c=='W' || c=='w') frog->xdir = 0, frog->ydir = -1, score += 10;
     else if(c=='S' || c=='s') {
         frog->xdir = 0, frog->ydir = 1;
@@ -167,19 +234,16 @@ void char_handler(char c){
 
 int main(void)
 {
+    init_leds();
     uart_init();
+    init_keypad();
     timer1_init(10000);
     levelTime = levelTicks[level];
     timer0_init(timerInterval[level]);
     init_rgb_led();
-    illuminate_RGB_LED(0);
+    illuminate_RGB_LED(7);
     ready_screen();
     printf(welcome_screen);
-    struct entity *g1 = create_entity(20, 5, -1, 0, 6, 0, 0, "Aaaaaa"), *g2 = create_entity(20, 6, 1, 0, 6, 0, 0, "Aaaaaa"), *mfrog = create_entity(22, 7, 0, 0, 1, 1, 0, "&");
-    push_back(g1);
-    push_back(g2);
-    push_back(mfrog);
-    frog = mfrog;
     while(1);
 }
 

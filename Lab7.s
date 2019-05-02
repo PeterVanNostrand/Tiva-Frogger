@@ -34,24 +34,26 @@ ebline13:		.string "|                                             |", 0x0D,0x0A
 ebline14:		.string "|.............................................|", 0x0D,0x0A
 ebborderB:		.string	"|---------------------------------------------|", 0
 
-end_message:	.string " ██████╗  █████╗ ███╗   ███╗███████╗     ██████╗ ██╗   ██╗███████╗██████╗ " , 0x0D,0x0A
+end_message:	.string 27, "[31;1m"
+end_0:			.string " ██████╗  █████╗ ███╗   ███╗███████╗     ██████╗ ██╗   ██╗███████╗██████╗ " , 0x0D,0x0A
 end_1:			.string "██╔════╝ ██╔══██╗████╗ ████║██╔════╝    ██╔═══██╗██║   ██║██╔════╝██╔══██╗" , 0x0D,0x0A
 end_2:			.string "██║  ███╗███████║██╔████╔██║█████╗      ██║   ██║██║   ██║█████╗  ██████╔╝" , 0x0D,0x0A
 end_3:			.string "██║   ██║██╔══██║██║╚██╔╝██║██╔══╝      ██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗" , 0x0D,0x0A
 end_4:			.string "╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗    ╚██████╔╝ ╚████╔╝ ███████╗██║  ██║" , 0x0D,0x0A
-end_5:			.string "╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝     ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝" , 0x0D,0x0A, 0
-
+end_5:			.string "╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝     ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝" , 0x0D,0x0A
+end_6:			.string 27,"[37;0m"
+end_7:			.string	"                         PRESS SPACE TO PLAY AGAIN!", 0
 pause_screen:	.string	27,"[32;1m"
-pause1:			.string	"██████╗  █████╗ ███╗   ███╗███████╗    ██████╗  █████╗ ██╗   ██╗███████╗███████╗██████╗" , 0x0D,0x0A
+pause1:			.string	" ██████╗  █████╗ ███╗   ███╗███████╗    ██████╗  █████╗ ██╗   ██╗███████╗███████╗██████╗" , 0x0D,0x0A
 pause2:			.string	"██╔════╝ ██╔══██╗████╗ ████║██╔════╝    ██╔══██╗██╔══██╗██║   ██║██╔════╝██╔════╝██╔══██╗" , 0x0D,0x0A
 pause3:			.string	"██║  ███╗███████║██╔████╔██║█████╗      ██████╔╝███████║██║   ██║███████╗█████╗  ██║  ██║" , 0x0D,0x0A
 pause4:			.string	"██║   ██║██╔══██║██║╚██╔╝██║██╔══╝      ██╔═══╝ ██╔══██║██║   ██║╚════██║██╔══╝  ██║  ██║" , 0x0D,0x0A
 pause5:			.string	"╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗    ██║     ██║  ██║╚██████╔╝███████║███████╗██████╔╝" , 0x0D,0x0A
 pause6:			.string	" ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝    ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝╚═════╝" , 0x0D,0x0A
 pause7:			.string 27,"[37;0m"
-pause8:			.string	"                               PRESS SPACE TO RESUME PLAYING",0
+pause8:			.string	"                 PRESS SPACE OR A KEY ON THE KEYPAD TO RESUME PLAYING",0
 
-score_string:	.string "XXXX", 0
+score_string:	.string "XXXXXX", 0
 lives_string:	.string "X", 0
 time_string:	.string	"XX", 0
 level_string:	.string	"XX", 0
@@ -96,10 +98,18 @@ level_string:	.string	"XX", 0
 	.global ready_screen
 	.global pause_screen
 	.global Timer1Handler
+	.global generate_entities
+	.global illuminate_RGB_LED
+	.global PortAHandler
+	.global timer0_stop
+	.global started
 
 UART0: 			.field 	0x4000C000, 32
 TIMER0:			.field	0x40030000,	32	; base address of Timer0
 TIMER1:			.field	0x40031000,	32	; base address of Timer1
+PORTA:			.field 	0x40004000, 32  ; GPIO Port A Base Address
+BUTTON_DELAY:	.field	800000,	32
+GPIOICR:		.equ	0x41C
 clear_screen:	.string 27, "[2J", 0		; escape sequence to clear screen
 home_cursor:	.string 27, "[1;1H", 0		; escape sequence to move cursor to top left of terminal
 board_row:		.string	27, "[1;1H", 0
@@ -192,7 +202,7 @@ draw_score:
 	LDR r0, [r0]
 	MOVW r1, score_string
 	MOVT r1, score_string
-	MOV r2, #3
+	MOV r2, #5
 	BL itoa_pad
 	MOVW r4, score_string
 	MOVT r4, score_string
@@ -323,6 +333,7 @@ Timer0Handler: ; Register Invariant
 	BEQ Timer0Exit
 	; move stuff
 	BL move_entities
+	BL generate_entities
 	BL clear_board
 	BL board_add_entities
 	BL check_collisions ; will updates lives / end game if lost
@@ -398,16 +409,66 @@ end_game:
 	BL output_string
 	ADR r4, hide_cursor
 	BL output_string
-	ADR r4, text_red
-	BL output_string
 	MOVW r4, end_message
 	MOVT r4, end_message
-	BL output_string
-	ADR r4, text_white
 	BL output_string				; ypos- holds current vertical location of snake head
+	MOV r0, #2
+	BL illuminate_RGB_LED
+
+	MOVW r4, started
+	MOVT r4, started
+	MOV r5, #0
+	STRB r5, [r4]
+
 	LDMFD SP!, {LR}
 	MOV PC, LR
 ;==============================End End Game==============================================
+
+PortAHandler:
+;=============================Start PORTA Handler========================================
+	STMFD SP!, {r0-r10, LR}		; store the current program registers
+	; Clear Interrupt
+	LDR r0, PORTA
+	LDRB r1, [r0, #GPIOICR]
+	ORR r1, r1, #0x3C
+	STRB r1, [r0, #GPIOICR]		; set bits 2-5 to 1 to clear interrupt
+
+	MOVW r4, playing
+	MOVT r4, playing
+	LDRB r5, [r4]
+	CMP r5, #0 ; weren't playing, unpause game
+	BEQ set_playing
+	B set_not_playing ; otherwise were playing, pause game
+keypad_exit:
+	LDRB r0, BUTTON_DELAY
+button_loop:
+	SUB r0, r0, #1
+	CMP r0, #0
+	BGT button_loop
+	LDMFD SP!, {r0-r10, LR}		; restore the current program registers
+	BX LR						; return to normal execution
+set_playing:
+	MOV r0, #4 ; GREEN
+	BL illuminate_RGB_LED ; set LED green
+	BL ready_screen ; clear screen
+	MOVW r4, playing
+	MOVT r4, playing
+	MOV r5, #1 ; set state to playing
+	STRB r5, [r4]
+	B keypad_exit
+set_not_playing:
+	MOV r0, #1 ; RED
+	BL illuminate_RGB_LED
+	BL ready_screen ; clear screen
+	MOVW r4, pause_screen
+	MOVT r4, pause_screen
+	BL output_string
+	MOVW r4, playing
+	MOVT r4, playing
+	MOV r5, #0 ; set state to playing
+	STRB r5, [r4]
+	B keypad_exit
+;==============================End PORTA Handler=========================================
 
 ready_screen:
 ;========================================================================================

@@ -44,6 +44,7 @@ extern void _c_int00(void);
 extern void Uart0Handler(void);
 extern void Timer0Handler(void);
 extern void Timer1Handler(void);
+extern void PortAHandler(void);
 //extern void my_i2cIntHandler(void);
 //*****************************************************************************
 //
@@ -86,7 +87,7 @@ void (* const g_pfnVectors[])(void) =
     0,                                      // Reserved
     IntDefaultHandler,                      // The PendSV handler
     IntDefaultHandler,                      // The SysTick handler
-    IntDefaultHandler,                      // GPIO Port A
+    PortAHandler,                      // GPIO Port A
     IntDefaultHandler,                      // GPIO Port B
     IntDefaultHandler,                      // GPIO Port C
     IntDefaultHandler,                      // GPIO Port D

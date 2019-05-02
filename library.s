@@ -13,6 +13,10 @@
 	.global illuminate_RGB_LED
 	.global timer1_init
 	.global timer1_stop
+	.global timer0_stop
+	.global init_keypad
+	.global init_leds
+	.global illuminate_LEDs
 
 LOCKCODE:		.field	0x4C4F434B		; special value written to lock registers to allow use
 SYSCLKCTRL:		.field	0x400FE108, 32	; clock control register
@@ -42,6 +46,7 @@ DIGITAL:		.equ	0x51C			; offset for GPIO digital/analog register, 1=digital
 LOCK:			.equ	0x520			; offset for GPIO lock register
 UARTIM:			.equ	0x038			; interrupt mask for UART0
 INTERVAL:		.field	4000000, 32		; number of clock ticks between interrupts
+LEDVALS:		.string	0x01, 0x03, 0x07, 0x0F0, 0
 
 timer0_init: ; AAPCS Compliant - Register Invariant
 ;==============================Start Timer0Init==========================================
@@ -415,6 +420,35 @@ d2af_store:
 	MOV PC, LR					; exitlib subroutine
 ;===============================End dec_to_ascii=========================================
 
+
+init_leds:
+;===============================Start LED Setup==========================================
+	; Setup LEDs as ourput, PORTB LED0=PB0 LED1=PB1 LED2=PB2 LED3=PB3
+	STMFD SP!, {LR}			; Store register r0 on stack
+	LDR r0, PORTB			; Load base address of PORTB
+	; Enable Clock
+	LDR r1, SYSCLKCTRL		; Load address of SYSCTL_GCGC2_R (clock control register)
+	LDRB r2, [r1]			; load the control byte
+	ORR r2, r2, #0x2		; set bit 2 to enable clock for PORTB
+	STRB r2, [r1]			; store the control byte
+	BL delay				; delay to allow clock to start, w/o this a bus fault occurs
+
+	; PB3-PB0 outputs
+	MOV r2, #0xF
+	STRB r2, [r0, #DIR]
+
+	; Enable digital I/O on PB3-PB0
+	MOV r2, #0xF
+	STRB r2, [r0, #DIGITAL]
+
+	;LDR r0, PORTB
+	;MOV r1, #0xF
+	;STRB r1, [r0, #DATA]
+
+	LDMFD SP!, {lr}				; Pop link register from stack
+	MOV PC, LR
+;================================End LED Setup===========================================
+
 init_rgb_led:
 ;=================================START RGB LED Setup==========================================
 	; Setup RGB LED on PORTF R=Pin1, B=Pin2, G=Pin3
@@ -474,6 +508,55 @@ illuminate_RGB_LED:
 	STRB r0, [r1, #DATA]
 	MOV PC, LR
 ;===============================END ILLUMINATE RGB LED=========================================
+
+i;lluminate_LEDs:
+;================================START ILLUMINATE LEDs=========================================
+	; Turns on the LEDs - uses r0 for parameter and r1 for address
+	; The requested LED's is passed in r0 as 0b0000XXXX, bit0=LED0 bit1=LED1 bit2=LED2 bit3=LED3, X=1 for on
+	;LDR r1, PORTB
+	;MOVW r2, LEDVALS
+	;MOVT r2, LEDVALS
+	;ADD r2, r0, r0
+	;LDRB r2, [r2]
+	;STRB r2, [r1, #DATA]
+	;MOV PC, LR
+;=================================END ILLUMINATE LEDs==========================================
+
+illuminate_LEDs:
+	STMFD SP!, {r0-r11, LR}
+	CMP r0, #0
+	BEQ leds_none
+	CMP r0, #1
+	BEQ leds_one
+	CMP r0, #2
+	BEQ leds_two
+	CMP r0, #3
+	BEQ leds_three
+	CMP r0, #4
+	BEQ leds_four
+	MOV r1, #0
+	B leds_exit
+leds_none:
+	MOV r1, #0
+	B leds_exit
+leds_one:
+	MOV r1, #1
+	B leds_exit
+leds_two:
+	MOV r1, #11b
+	B leds_exit
+leds_three:
+	MOV r1, #111b
+	B leds_exit
+leds_four:
+	MOV r1, #0xF
+	B leds_exit
+leds_exit:
+	LDR r0, PORTB
+	STRB r1, [r0, #DATA]
+	LDMFD SP!, {r0-r11, LR}
+	MOV PC, LR
+
 
 timer1_init: ; AAPCS Compliant - Register Invariant
 ;==============================Start Timer1Init==========================================
@@ -556,6 +639,107 @@ timer1_stop:
 	STR r5, [r4]
 	LDMFD SP!, {r4-r5}
 	MOV PC, LR
+
+timer0_stop:
+	STMFD SP!, {r4-r5}
+	; Disable timer
+	MOV r4, #0x000C			; load address of GPTM Control Register
+	MOVT r4, #0x4003
+	LDR r5, [r4]
+	BIC r5, r5, #0			; set bit 0 TAEN to 0 to disable timer
+	STR r5, [r4]
+	LDMFD SP!, {r4-r5}
+	MOV PC, LR
+
+init_keypad:
+;==============================Start Keypad Setup========================================
+	; Setups the keypad matrix
+	; PORTD Pins0-3 are the rows - setup as output
+	; PORT A Pins2-5 are cols - setup as input
+	STMFD SP!, {r0-r11,LR}			; Store register r0 on stack
+	LDR r0, PORTD			; Load base address of PORTD
+	; Enable Clock
+	LDR r1, SYSCLKCTRL		; Load address of SYSCTL_GCGC2_R (clock control register)
+	LDRB r2, [r1]			; load the control byte
+	ORR r2, r2, #0x8		; set bit 3 to enable clock for PORTD
+	STRB r2, [r1]			; store the control byte
+	BL delay				; delay to allow clock to start, w/o this a bus fault occurs
+
+	; Unlock PORTD
+	LDR r2, LOCKCODE		; load lockcode
+	STR r2, [r0, #LOCK]		; store the lcokcode
+	MOV r1, #0x0524			; load offset of GPIO_PORTD_CR_R register
+	LDRB r2, [r0, r1]
+	ORR r2, r2, #0x0F			; allow changes to PD3-PD0
+	STRB r2, [r0, r1]
+	BL delay
+
+	; PD3-PD0 output
+	LDRB r2, [r0, #DIR]
+	ORR r2, r2, #0xF
+	STRB r2, [r0, #DIR]
+	BL delay
+
+	; Enable digital I/O on PD3-PD0
+	LDRB r2, [r0, #DIGITAL]
+	ORR r2, r2, #0xF
+	STRB r2, [r0, #DIGITAL]
+	BL delay
+
+	; Initialize PD0-PD3 as high for interrupt
+	LDRB r2, [r0, #DATA]
+	ORR r2, r2, #0xF
+	STRB r2, [r0, #DATA]
+	BL delay
+
+	LDR r0, PORTA
+	; Enable Clock
+	LDR r1, SYSCLKCTRL		; Load address of SYSCTL_GCGC2_R (clock control register)
+	LDRB r2, [r1]			; load the control byte
+	ORR r2, r2, #0x1		; set bit 1 to enable clock for PORTA
+	STRB r2, [r1]			; store the control byte
+	BL delay				; delay to allow clock to start, w/o this a bus fault occurs
+
+	; PA5-PA2 inputs
+	LDRB r2, [r0, #DIR]
+	AND r2, r2, #0xC3
+	STRB r2, [r0, #DIR]
+	BL delay
+
+	; Enable digital I/O on PA5-PA2
+	LDRB r2, [r0, #DIGITAL]
+	ORR r2, r2, #0x3C
+	STRB r2, [r0, #DIGITAL]
+	BL delay
+
+	; Set interrupts to edge sensative PA2-PA5 - GPIOIS
+	LDRB r2, [r0, #GPIOIS]
+	AND r2, r2, #0xC3
+	STRB r2, [r0, #GPIOIS]
+
+	; Set interrupt to fire on rising or falling edge, not both - GPIOIBE
+	LDRB r2, [r0, #GPIOIBE]
+	AND r2, r2, #0xC3
+	STRB r2, [r0, #GPIOIBE]
+
+	; Select rising edge - GPIOIEV
+	LDRB r2, [r0, #GPIOIEV]
+	ORR r2, r2, #0x3C
+	STRB r2, [r0, #GPIOIEV]
+
+	; Configure interrupt masks for PA2-PA5 - GPIOIM
+	LDRB r2, [r0, #GPIOIM]
+	ORR r2, r2, #0x3C
+	STRB r2, [r0, #GPIOIM]
+
+	; Enable interrupts for Port A
+	LDR r1, EN0					; load address of interrupt enable register
+	LDRB r2, [r1]
+	ORR r2, #0xF				; set bits 0-4 high to enable PORTA interrupt
+	STRB r2, [r1]
+	LDMFD sp!, {r0-r11,lr}				; Pop link register from stack
+	MOV PC, LR
+;================================End Keypad Setup========================================
 
 delay: ; AAPCS Compliant
 ;==================================START DELAY===============================================
